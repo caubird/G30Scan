@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/white"
+    tools:context=".LoginActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="32dp">
+
+        <!-- 应用标题 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="G30巡检系统"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/purple_700"
+            android:layout_marginTop="48dp"
+            android:layout_marginBottom="48dp" />
+
+        <!-- 用户名输入框 -->
+        <EditText
+            android:id="@+id/et_username"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="用户名"
+            android:textSize="16sp"
+            android:textColor="@color/dark_text"
+            android:textColorHint="@color/secondary_text"
+            android:background="@drawable/bg_edit_text"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:singleLine="true"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 密码输入框 -->
+        <EditText
+            android:id="@+id/et_password"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="密码"
+            android:textSize="16sp"
+            android:textColor="@color/dark_text"
+            android:textColorHint="@color/secondary_text"
+            android:background="@drawable/bg_edit_text"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:inputType="textPassword"
+            android:singleLine="true"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 验证码区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
+
+            <EditText
+                android:id="@+id/et_verify_code"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="验证码"
+                android:textSize="16sp"
+                android:textColor="@color/dark_text"
+                android:textColorHint="@color/secondary_text"
+                android:background="@drawable/bg_edit_text"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true" />
+
+            <ImageView
+                android:id="@+id/iv_verify_code"
+                android:layout_width="100dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:scaleType="fitXY"
+                android:background="@color/light_gray"
+                android:contentDescription="验证码图片"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <!-- 登录按钮 -->
+        <Button
+            android:id="@+id/btn_login"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="登录"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/purple_500"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 登录结果/错误信息 -->
+        <TextView
+            android:id="@+id/tv_login_msg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/red"
+            android:gravity="center"
+            android:minHeight="20dp" />
+
+    </LinearLayout>
+</ScrollView>

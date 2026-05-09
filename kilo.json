@@ -1,0 +1,43 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "provider": {
+    "kimi": {
+      "options": {
+        "apiKey": "sk-kimi-gagTDq2b8rRSDumdypDgu4w6v4wo1wmIx1uOqy5GbhVLYweZHDrxSFW5tdGDJTLv",
+        "baseURL": "https://api.moonshot.cn/v1/",
+        "timeout": 300000
+      }
+    }
+  },
+  "enabled_providers": ["kimi"],
+  "model": "kimi/moonshot-v1-8k",
+  "plugin": [
+    "./.kilo/plugins/obsidian-knowledge.js"
+  ],
+  "mcp": {
+    "obsidian": {
+      "type": "local",
+      "command": ["python3", "/run/media/lijian/Data/test/Android/G30Scanner/.kilo/mcp-servers/obsidian-knowledge.py"],
+      "environment": {
+        "OBSIDIAN_VAULT": "/run/media/lijian/Data/work/知识库/知识库"
+      },
+      "enabled": true
+    }
+  },
+  "permission": {
+    "obsidian_search_notes": "allow",
+    "obsidian_append_task_log": "allow",
+    "obsidian_get_vault_path": "allow",
+    "log_to_obsidian": "allow",
+    "search_notes": "allow",
+    "vault_info": "allow"
+  },
+  "agent": {
+    "code": {
+      "settings": {
+        "retrieveContext": true,
+        "maxTokens": 32768
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">G30资产扫描工具</string>
+    <string name="open_serial">打开串口</string>
+    <string name="close_serial">关闭串口</string>
+    <string name="refresh">刷新设备</string>
+    <string name="send_command">发送指令</string>
+    <string name="start_scan">开始搜索</string>
+    <string name="stop_scan">停止搜索</string>
+    <string name="process_data">处理数据</string>
+    <string name="export_data">导出数据</string>
+    <string name="clear_beacons">清空</string>
+    <string name="status_closed">状态：已关闭</string>
+    <string name="status_opened">状态：已打开</string>
+    <string name="hint_command">AT+STARTSCAN=NORMAL</string>
+    <string name="hint_mac_filter">MAC过滤</string>
+    <string name="hint_rssi_threshold">RSSI限值</string>
+    <string name="time_prefix">时间：</string>
+    <string name="count_prefix">总数：</string>
+    <string name="beacon_count">资产：</string>
+    <string name="stat_all_mac">所有MAC：</string>
+    <string name="stat_account_mac">账号MAC：</string>
+    <string name="stat_matched_asset">匹配资产：</string>
+    <string name="received_data">数据接收</string>
+    <string name="beacon_list">资产列表 (MAC / 资产编号 / 距离)</string>
+    <string name="select_device">请选择USB设备</string>
+    <string name="no_device">未检测到USB设备</string>
+    <string name="cb_alarm">超限报警</string>
+    <string name="cb_sort">按信号排序</string>
+    <string name="alarm_triggered">发现资产！</string>
+    <string name="hint_asset_filter">资产编号过滤</string>
+    <string name="query_asset">查询资产</string>
+    <string name="logout">登出</string>
+    <string name="filter_mode_mac">MAC过滤</string>
+    <string name="filter_mode_asset">资产编号过滤</string>
+</resources>
