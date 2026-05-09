@@ -16,6 +16,9 @@ public class LabelListRequest {
     @SerializedName("size")
     private String size;
 
+    @SerializedName("containLower")
+    private String containLower;
+
     public LabelListRequest() {
     }
 
@@ -41,5 +44,13 @@ public class LabelListRequest {
 
     public void setSize(String size) {
         this.size = size;
+    }
+
+    public String getContainLower() {
+        return containLower;
+    }
+
+    public void setContainLower(String containLower) {
+        this.containLower = containLower;
     }
 }

@@ -552,6 +552,7 @@ public class MainActivity extends AppCompatActivity {
         request.setLabelCode(macList);
         request.setCurrent(String.valueOf(page));
         request.setSize(String.valueOf(BATCH_SIZE));
+        request.setContainLower("0");
 
         ApiService.getLabelList(request, token, new ApiCallback<LabelListResponse>() {
             @Override
