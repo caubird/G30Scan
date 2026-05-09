@@ -491,13 +491,12 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 查询资产编号。
      * <p>
-     * 核心原则：<b>不校验所属单位（deptName）</b>。
-     * 后台接口会返回当前账号及其子单位下的全部标签，只要 MAC 能匹配上就应当展示，
-     * 单位名称仅作为展示信息，不做任何过滤条件。
+     * 原则：后端返回的所有标签数据全部展示，不做任何过滤。
+     * 单位名称仅作为展示信息，不影响显示逻辑。
      * <p>
-     * 实现上做了两件事来防止"漏查"：
+     * 防漏查措施：
      * 1. MAC 归一化比对（兼容有无分隔符的格式差异）
-     * 2. 自动翻页拉取：若后台分页返回，会递归拉取该批次全部页码，直到条数满足 total
+     * 2. 自动翻页拉取：若后台分页返回，递归拉取该批次全部页码，直到条数满足 total
      */
     private void queryAssetCodes() {
         if (beaconList.isEmpty()) {
@@ -568,7 +567,7 @@ public class MainActivity extends AppCompatActivity {
                         long apiTotal = response.getData().getTotal();
                         // 1) apiTotal 有效：按总数兜底翻页
                         // 2) apiTotal 为 0/缺失：只要本页有数据且未超过安全上限，也继续翻页，
-                        //    防止后台 total 字段异常导致子单位资产被截断在第一页
+                        //    防止后台 total 字段异常导致数据被截断在第一页
                         boolean needMore = (accumulator.size() < apiTotal)
                                 || (apiTotal <= 0 && items != null && !items.isEmpty() && page < 50);
                         if (needMore) {
@@ -586,7 +585,6 @@ public class MainActivity extends AppCompatActivity {
                                 String normalizedLabel = normalizeMac(item.getLabelCode());
                                 for (BeaconItem beacon : beaconList) {
                                     if (normalizeMac(beacon.MAC).equals(normalizedLabel)) {
-                                        // 注意：此处不校验所属单位，子单位资产也应显示
                                         beacon.hasSystemRecord = true;
                                         if (item.getBindCode() != null) {
                                             beacon.bindCode = item.getBindCode();
@@ -606,7 +604,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                         totalMatchCount[0] += matchCount;
 
-                        // 记录该批次中后端未返回的 MAC，便于诊断子单位资产是否被服务端过滤
+                        // 记录该批次中后端未返回的 MAC，便于诊断数据是否被服务端过滤
                         if (matchCount < accumulator.size() || !accumulator.isEmpty()) {
                             String[] batchMacs = macList.split(",");
                             List<String> unmatchedMacs = new ArrayList<>();
@@ -1228,8 +1226,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 holder.tvAsset.setVisibility(View.GONE);
             }
-            // 单位行：接口返回的标签永远显示单位信息，便于区分主单位/子单位资产；
-            // 不校验 deptName 是否与登录用户一致，子单位资产也应正常展示。
+            // 单位行：接口返回的标签显示单位信息，后端返回什么就展示什么，不做任何过滤。
             if (beacon.hasSystemRecord) {
                 if (beacon.deptName != null && !beacon.deptName.isEmpty()) {
                     holder.tvUnit.setText("单位：" + beacon.deptName);
