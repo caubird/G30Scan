@@ -142,6 +142,11 @@ public class MainActivity extends AppCompatActivity {
     // 自动处理标志
     private boolean autoProcess = true;
 
+    // 是否正在查询资产中
+    private boolean isQuerying = false;
+    // 发现新信标后标记，用于自动触发增量查询
+    private boolean pendingAutoQuery = false;
+
     // 过滤类别：0=所有MAC, 1=账号MAC, 2=匹配资产
     private int filterCategory = 0;
 
@@ -359,6 +364,13 @@ public class MainActivity extends AppCompatActivity {
                         processCounter = 0;
                         processData();
                     }
+
+                    // 自动增量查询：发现新信标后，若当前未在查询中，自动补查一次
+                    if (pendingAutoQuery && !isQuerying) {
+                        pendingAutoQuery = false;
+                        FileLogger.i(LOG_TAG, "检测到新信标，触发自动增量查询");
+                        queryAssetCodes();
+                    }
                 }
                 timerHandler.postDelayed(this, 500);
             }
@@ -507,6 +519,7 @@ public class MainActivity extends AppCompatActivity {
             beacon.deptName = null;
         }
 
+        isQuerying = true;
         btnQueryAsset.setEnabled(false);
         btnQueryAsset.setText("查询中...");
 
@@ -582,15 +595,43 @@ public class MainActivity extends AppCompatActivity {
                                             beacon.deptName = item.getDeptName();
                                         }
                                         matchCount++;
+                                        FileLogger.d(LOG_TAG, "匹配详情: MAC=" + beacon.MAC
+                                                + " | 资产=" + (beacon.bindCode != null ? beacon.bindCode : "未绑定")
+                                                + " | 单位=" + (beacon.deptName != null ? beacon.deptName : "—")
+                                                + " | hasSystemRecord=true");
                                         break;
                                     }
                                 }
                             }
                         }
                         totalMatchCount[0] += matchCount;
+
+                        // 记录该批次中后端未返回的 MAC，便于诊断子单位资产是否被服务端过滤
+                        if (matchCount < accumulator.size() || !accumulator.isEmpty()) {
+                            String[] batchMacs = macList.split(",");
+                            List<String> unmatchedMacs = new ArrayList<>();
+                            for (String m : batchMacs) {
+                                String nm = normalizeMac(m);
+                                boolean found = false;
+                                for (LabelItem item : accumulator) {
+                                    if (nm.equals(normalizeMac(item.getLabelCode()))) {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    unmatchedMacs.add(m);
+                                }
+                            }
+                            if (!unmatchedMacs.isEmpty()) {
+                                FileLogger.d(LOG_TAG, "本批次未匹配(后端未返回): " + unmatchedMacs);
+                            }
+                        }
+
                         completedBatches[0]++;
 
                         if (completedBatches[0] >= batchCount) {
+                            isQuerying = false;
                             btnQueryAsset.setEnabled(true);
                             btnQueryAsset.setText(R.string.query_asset);
                             updateBeaconList();
@@ -609,6 +650,7 @@ public class MainActivity extends AppCompatActivity {
                     // 即使失败，也标记该批次完成，避免卡住后续流程
                     completedBatches[0]++;
                     if (completedBatches[0] >= batchCount) {
+                        isQuerying = false;
                         btnQueryAsset.setEnabled(true);
                         btnQueryAsset.setText(R.string.query_asset);
                         updateBeaconList();
@@ -753,6 +795,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                             beaconList.add(newBeacon);
                             FileLogger.d(LOG_TAG, "发现新信标 MAC=" + mac + " RSSI=" + rssi);
+                            pendingAutoQuery = true;
 
                         }
                     }
@@ -888,8 +931,12 @@ public class MainActivity extends AppCompatActivity {
     private void updateBeaconList() {
         String filter = etMacFilter.getText().toString().trim().toUpperCase();
         int rssiThreshold = getRssiThreshold();
+        int filterMode = spinnerFilterMode.getSelectedItemPosition();
 
         List<BeaconItem> filteredList = new ArrayList<>();
+        int filteredOutByCategory = 0;
+        int filteredOutByMac = 0;
+        int filteredOutByRssi = 0;
 
         for (BeaconItem beacon : beaconList) {
             // 类别过滤：0=所有MAC, 1=账号MAC（接口返回的全部标签）, 2=匹配资产（已绑定 bindCode 的标签）
@@ -899,9 +946,12 @@ public class MainActivity extends AppCompatActivity {
             } else if (filterCategory == 2) {
                 matchesCategory = isMatchedAsset(beacon);
             }
+            if (!matchesCategory) {
+                filteredOutByCategory++;
+                continue;
+            }
 
             boolean matchesFilter;
-            int filterMode = spinnerFilterMode.getSelectedItemPosition();
             if (filterMode == 0) {
                 // MAC过滤模式：使用归一化 MAC 比对，兼容有无分隔符的格式差异
                 matchesFilter = filter.length() < 2
@@ -911,14 +961,30 @@ public class MainActivity extends AppCompatActivity {
                 matchesFilter = filter.length() < 2 ||
                         (beacon.bindCode != null && beacon.bindCode.toUpperCase().contains(filter));
             }
+            if (!matchesFilter) {
+                filteredOutByMac++;
+                continue;
+            }
 
             // RSSI阈值过滤：只显示高于限值的（实时RSSI >= threshold）
             boolean matchesRssi = beacon.lastRSSI >= rssiThreshold;
-
-            if (matchesCategory && matchesFilter && matchesRssi) {
-                filteredList.add(beacon);
+            if (!matchesRssi) {
+                filteredOutByRssi++;
+                continue;
             }
+
+            filteredList.add(beacon);
         }
+
+        FileLogger.d(LOG_TAG, "刷新列表: 总信标=" + beaconList.size()
+                + " | 显示=" + filteredList.size()
+                + " | 类别过滤掉=" + filteredOutByCategory
+                + " | MAC/资产过滤掉=" + filteredOutByMac
+                + " | RSSI过滤掉=" + filteredOutByRssi
+                + " | filterCategory=" + filterCategory
+                + " | filterMode=" + filterMode
+                + " | filterText=[" + filter + "]"
+                + " | rssiThreshold=" + rssiThreshold);
 
         // 排序：
         // 1) 已绑定资产的信标永远置顶（匹配资产）

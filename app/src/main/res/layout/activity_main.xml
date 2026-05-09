@@ -151,7 +151,6 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:hint="@string/hint_mac_filter"
-                android:text="00FF10"
                 android:textSize="13sp"
                 android:inputType="text"
                 android:maxLines="1" />
@@ -163,7 +162,6 @@
                 android:layout_weight="1"
                 android:layout_marginStart="6dp"
                 android:hint="@string/hint_rssi_threshold"
-                android:text="-70"
                 android:textSize="13sp"
                 android:inputType="numberSigned"
                 android:maxLines="1" />

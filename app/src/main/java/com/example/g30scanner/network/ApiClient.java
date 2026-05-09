@@ -114,6 +114,8 @@ public class ApiClient {
     public <T> void asyncPost(String url, Object body, String token, Class<T> clazz, ApiCallback<T> callback) {
         String fullUrl = buildFullUrl(url);
         String jsonBody = body != null ? gson.toJson(body) : "";
+        // 全量请求日志，便于和后端对账
+        com.example.g30scanner.utils.FileLogger.d(TAG, "[REQ] POST " + fullUrl + " | Token=" + (token != null ? "Bearer ***" : "null") + " | Body=" + jsonBody);
         RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE, jsonBody);
         Request request = buildRequest(fullUrl, requestBody, token);
         enqueueRequest(request, clazz, callback);
@@ -403,25 +405,32 @@ public class ApiClient {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
+                com.example.g30scanner.utils.FileLogger.e(TAG, "[RESP] onFailure: " + e.getMessage());
                 deliverFailure(callback, "网络请求失败: " + e.getMessage());
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
+                    com.example.g30scanner.utils.FileLogger.e(TAG, "[RESP] HTTP " + response.code());
                     deliverFailure(callback, "服务器错误: " + response.code());
                     return;
                 }
                 ResponseBody body = response.body();
                 if (body == null) {
+                    com.example.g30scanner.utils.FileLogger.e(TAG, "[RESP] body is null");
                     deliverFailure(callback, "响应体为空");
                     return;
                 }
                 String responseString = body.string();
+                // 全量响应日志，长度截断避免过大
+                String logResp = responseString.length() > 4000 ? responseString.substring(0, 4000) + "...(truncated)" : responseString;
+                com.example.g30scanner.utils.FileLogger.d(TAG, "[RESP] Body=" + logResp);
                 try {
                     T result = gson.fromJson(responseString, clazz);
                     deliverSuccess(callback, result);
                 } catch (JsonSyntaxException e) {
+                    com.example.g30scanner.utils.FileLogger.e(TAG, "[RESP] JSON parse error: " + e.getMessage());
                     deliverFailure(callback, "JSON 解析失败: " + e.getMessage());
                 }
             }
