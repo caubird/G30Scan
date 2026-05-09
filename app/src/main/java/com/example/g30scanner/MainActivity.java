@@ -161,6 +161,16 @@ public class MainActivity extends AppCompatActivity {
                 && !beacon.bindCode.isEmpty();
     }
 
+    /**
+     * 归一化 MAC 地址：去除所有非十六进制字符并转为大写。
+     * 用于兼容扫描端与后台接口可能出现的格式差异，例如：
+     * AABBCCDDEEFF、AA:BB:CC:DD:EE:FF、AA-BB-CC-DD-EE-FF
+     */
+    private static String normalizeMac(String mac) {
+        if (mac == null) return "";
+        return mac.replaceAll("[^0-9A-Fa-f]", "").toUpperCase();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -441,9 +451,20 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, "资产列表已清空", Toast.LENGTH_SHORT).show();
     }
 
-    // 每批查询的最大MAC数量（避免后台分页截断）
+    // 每批查询的最大MAC数量
     private static final int BATCH_SIZE = 100;
 
+    /**
+     * 查询资产编号。
+     * <p>
+     * 核心原则：<b>不校验所属单位（deptName）</b>。
+     * 后台接口会返回当前账号及其子单位下的全部标签，只要 MAC 能匹配上就应当展示，
+     * 单位名称仅作为展示信息，不做任何过滤条件。
+     * <p>
+     * 实现上做了两件事来防止"漏查"：
+     * 1. MAC 归一化比对（兼容有无分隔符的格式差异）
+     * 2. 自动翻页拉取：若后台分页返回，会递归拉取该批次全部页码，直到条数满足 total
+     */
     private void queryAssetCodes() {
         if (beaconList.isEmpty()) {
             Toast.makeText(this, "没有扫描到设备", Toast.LENGTH_SHORT).show();
@@ -466,7 +487,6 @@ public class MainActivity extends AppCompatActivity {
         btnQueryAsset.setEnabled(false);
         btnQueryAsset.setText("查询中...");
 
-        // 分批查询：每批最多 BATCH_SIZE 个MAC，避免后台分页截断导致漏查
         final int total = beaconList.size();
         final int batchCount = (total + BATCH_SIZE - 1) / BATCH_SIZE;
         final int[] completedBatches = {0};
@@ -482,43 +502,71 @@ public class MainActivity extends AppCompatActivity {
                 sb.append(beaconList.get(i).MAC);
             }
 
-            LabelListRequest request = new LabelListRequest();
-            request.setLabelCode(sb.toString());
-            request.setCurrent("1");
-            request.setSize(String.valueOf(end - start));
+            // 对每一批启动递归分页拉取
+            fetchBatchPages(sb.toString(), 1, new ArrayList<>(),
+                    batchCount, completedBatches, totalMatchCount, tokenManager.getToken());
+        }
+    }
 
-            final int currentBatch = batch + 1;
-            ApiService.getLabelList(request, tokenManager.getToken(), new ApiCallback<LabelListResponse>() {
-                @Override
-                public void onSuccess(LabelListResponse response) {
-                    runOnUiThread(() -> {
-                        completedBatches[0]++;
+    /**
+     * 递归拉取单批次的全部页码，防止后台分页导致漏查。
+     */
+    private void fetchBatchPages(String macList, int page, List<LabelItem> accumulator,
+                                 int batchCount, int[] completedBatches, int[] totalMatchCount, String token) {
+        LabelListRequest request = new LabelListRequest();
+        request.setLabelCode(macList);
+        request.setCurrent(String.valueOf(page));
+        request.setSize(String.valueOf(BATCH_SIZE));
 
-                        if (response != null && "00000".equals(response.getCode())
-                                && response.getData() != null && response.getData().getResultList() != null) {
-                            List<LabelItem> items = response.getData().getResultList();
-                            int matchCount = 0;
-                            for (LabelItem item : items) {
-                                if (item.getLabelCode() != null) {
-                                    for (BeaconItem beacon : beaconList) {
-                                        if (beacon.MAC.equalsIgnoreCase(item.getLabelCode())) {
-                                            beacon.hasSystemRecord = true;
-                                            if (item.getBindCode() != null) {
-                                                beacon.bindCode = item.getBindCode();
-                                            }
-                                            if (item.getDeptName() != null) {
-                                                beacon.deptName = item.getDeptName();
-                                            }
-                                            matchCount++;
-                                            break;
+        ApiService.getLabelList(request, token, new ApiCallback<LabelListResponse>() {
+            @Override
+            public void onSuccess(LabelListResponse response) {
+                runOnUiThread(() -> {
+                    boolean hasMorePages = false;
+                    if (response != null && "00000".equals(response.getCode())
+                            && response.getData() != null) {
+                        List<LabelItem> items = response.getData().getResultList();
+                        if (items != null) {
+                            accumulator.addAll(items);
+                        }
+                        long apiTotal = response.getData().getTotal();
+                        // 1) apiTotal 有效：按总数兜底翻页
+                        // 2) apiTotal 为 0/缺失：只要本页有数据且未超过安全上限，也继续翻页，
+                        //    防止后台 total 字段异常导致子单位资产被截断在第一页
+                        boolean needMore = (accumulator.size() < apiTotal)
+                                || (apiTotal <= 0 && items != null && !items.isEmpty() && page < 50);
+                        if (needMore) {
+                            hasMorePages = true;
+                            fetchBatchPages(macList, page + 1, accumulator,
+                                    batchCount, completedBatches, totalMatchCount, token);
+                        }
+                    }
+
+                    if (!hasMorePages) {
+                        // 该批次全部页码已拉完，执行匹配
+                        int matchCount = 0;
+                        for (LabelItem item : accumulator) {
+                            if (item.getLabelCode() != null) {
+                                String normalizedLabel = normalizeMac(item.getLabelCode());
+                                for (BeaconItem beacon : beaconList) {
+                                    if (normalizeMac(beacon.MAC).equals(normalizedLabel)) {
+                                        // 注意：此处不校验所属单位，子单位资产也应显示
+                                        beacon.hasSystemRecord = true;
+                                        if (item.getBindCode() != null) {
+                                            beacon.bindCode = item.getBindCode();
                                         }
+                                        if (item.getDeptName() != null) {
+                                            beacon.deptName = item.getDeptName();
+                                        }
+                                        matchCount++;
+                                        break;
                                     }
                                 }
                             }
-                            totalMatchCount[0] += matchCount;
                         }
+                        totalMatchCount[0] += matchCount;
+                        completedBatches[0]++;
 
-                        // 所有批次完成后更新UI
                         if (completedBatches[0] >= batchCount) {
                             btnQueryAsset.setEnabled(true);
                             btnQueryAsset.setText(R.string.query_asset);
@@ -528,26 +576,27 @@ public class MainActivity extends AppCompatActivity {
                                     "查询完成，共匹配 " + totalMatchCount[0] + " 个设备（" + batchCount + " 批次）",
                                     Toast.LENGTH_SHORT).show();
                         }
-                    });
-                }
+                    }
+                });
+            }
 
-                @Override
-                public void onFailure(String error) {
-                    runOnUiThread(() -> {
-                        completedBatches[0]++;
-                        if (completedBatches[0] >= batchCount) {
-                            btnQueryAsset.setEnabled(true);
-                            btnQueryAsset.setText(R.string.query_asset);
-                            updateBeaconList();
-                            updateStats();
-                            Toast.makeText(MainActivity.this,
-                                    "查询完成（部分失败），共匹配 " + totalMatchCount[0] + " 个设备",
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
-            });
-        }
+            @Override
+            public void onFailure(String error) {
+                runOnUiThread(() -> {
+                    // 即使失败，也标记该批次完成，避免卡住后续流程
+                    completedBatches[0]++;
+                    if (completedBatches[0] >= batchCount) {
+                        btnQueryAsset.setEnabled(true);
+                        btnQueryAsset.setText(R.string.query_asset);
+                        updateBeaconList();
+                        updateStats();
+                        Toast.makeText(MainActivity.this,
+                                "查询完成（部分失败），共匹配 " + totalMatchCount[0] + " 个设备",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
     }
 
     private void updateStats() {
@@ -1066,8 +1115,14 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 holder.tvAsset.setVisibility(View.GONE);
             }
-            if (beacon.hasSystemRecord && beacon.deptName != null && !beacon.deptName.isEmpty()) {
-                holder.tvUnit.setText("单位：" + beacon.deptName);
+            // 单位行：接口返回的标签永远显示单位信息，便于区分主单位/子单位资产；
+            // 不校验 deptName 是否与登录用户一致，子单位资产也应正常展示。
+            if (beacon.hasSystemRecord) {
+                if (beacon.deptName != null && !beacon.deptName.isEmpty()) {
+                    holder.tvUnit.setText("单位：" + beacon.deptName);
+                } else {
+                    holder.tvUnit.setText("单位：—");
+                }
                 holder.tvUnit.setVisibility(View.VISIBLE);
             } else {
                 holder.tvUnit.setVisibility(View.GONE);
