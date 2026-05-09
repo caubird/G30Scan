@@ -52,6 +52,7 @@ import com.example.g30scanner.data.model.LabelListResponse;
 import com.example.g30scanner.network.ApiCallback;
 import com.example.g30scanner.network.ApiService;
 import com.example.g30scanner.usb.UsbSerialManager;
+import com.example.g30scanner.utils.FileLogger;
 import com.example.g30scanner.utils.TokenManager;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
 
@@ -173,12 +174,16 @@ public class MainActivity extends AppCompatActivity {
         return mac.replaceAll("[^0-9A-Fa-f]", "").toUpperCase();
     }
 
+    private static final String LOG_TAG = "MainActivity";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        FileLogger.i(LOG_TAG, "========== App启动 ==========");
 
         // 检查登录状态
         if (!TokenManager.getInstance(this).isLoggedIn()) {
+            FileLogger.w(LOG_TAG, "未登录，跳转登录页");
             Intent intent = new Intent(this, LoginActivity.class);
             startActivity(intent);
             finish();
@@ -298,6 +303,7 @@ public class MainActivity extends AppCompatActivity {
         usbManager.setOnConnectionListener(new UsbSerialManager.OnConnectionListener() {
             @Override
             public void onConnected(String deviceName) {
+                FileLogger.i(LOG_TAG, "USB串口已连接: " + deviceName);
                 runOnUiThread(() -> {
                     btnStartSearch.setText(R.string.stop_scan);
                     btnStartSearch.setBackgroundResource(R.drawable.bg_stop_btn);
@@ -315,6 +321,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onDisconnected(String reason) {
+                FileLogger.i(LOG_TAG, "USB串口已断开: " + reason);
                 runOnUiThread(() -> {
                     resetConnectionState();
                     Toast.makeText(MainActivity.this, reason, Toast.LENGTH_SHORT).show();
@@ -411,6 +418,7 @@ public class MainActivity extends AppCompatActivity {
     private void toggleSearch() {
         if (usbManager.isConnected()) {
             // 停止搜索：断开串口
+            FileLogger.i(LOG_TAG, "用户点击停止搜索");
             usbManager.disconnect();
             resetConnectionState();
         } else {
@@ -433,9 +441,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void sendScanCommand() {
         String command = "AT+STARTSCAN=NORMAL";
+        FileLogger.i(LOG_TAG, "发送扫描指令: " + command);
         if (usbManager.send(command)) {
             Toast.makeText(this, "已开始扫描", Toast.LENGTH_SHORT).show();
         } else {
+            FileLogger.e(LOG_TAG, "发送扫描指令失败");
             Toast.makeText(this, "发送扫描指令失败", Toast.LENGTH_SHORT).show();
         }
     }
@@ -453,6 +463,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void clearBeacons() {
+        FileLogger.i(LOG_TAG, "用户清空资产列表");
         beaconList.clear();
         receiveBuffer.setLength(0);
         totalMessageCount = 0;
@@ -481,6 +492,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "没有扫描到设备", Toast.LENGTH_SHORT).show();
             return;
         }
+        FileLogger.i(LOG_TAG, "开始查询资产，当前扫描到 " + beaconList.size() + " 个信标");
 
         TokenManager tokenManager = TokenManager.getInstance(this);
         if (!tokenManager.isLoggedIn()) {
@@ -583,9 +595,9 @@ public class MainActivity extends AppCompatActivity {
                             btnQueryAsset.setText(R.string.query_asset);
                             updateBeaconList();
                             updateStats();
-                            Toast.makeText(MainActivity.this,
-                                    "查询完成，共匹配 " + totalMatchCount[0] + " 个设备（" + batchCount + " 批次）",
-                                    Toast.LENGTH_SHORT).show();
+                            String msg = "查询完成，共匹配 " + totalMatchCount[0] + " 个设备（" + batchCount + " 批次）";
+                            FileLogger.i(LOG_TAG, msg);
+                            Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
@@ -690,6 +702,7 @@ public class MainActivity extends AppCompatActivity {
         if (buffer.isEmpty()) {
             return;
         }
+        FileLogger.d(LOG_TAG, "处理数据包，长度=" + buffer.length());
 
         // 清空已处理的数据
         receiveBuffer.setLength(0);
@@ -739,6 +752,7 @@ public class MainActivity extends AppCompatActivity {
                                 totalMessageCount++;
                             }
                             beaconList.add(newBeacon);
+                            FileLogger.d(LOG_TAG, "发现新信标 MAC=" + mac + " RSSI=" + rssi);
 
                         }
                     }
@@ -944,6 +958,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "没有数据可导出", Toast.LENGTH_SHORT).show();
             return;
         }
+        FileLogger.i(LOG_TAG, "用户导出数据，共 " + beaconList.size() + " 条记录");
 
         // Android 10+ 直接使用 SAF，无需运行时权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -1065,10 +1080,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        FileLogger.i(LOG_TAG, "========== App退出 ==========");
         super.onDestroy();
         timerHandler.removeCallbacks(timerRunnable);
         blinkHandler.removeCallbacksAndMessages(null);
-        
+
         // 清理音频资源
         if (alarmMediaPlayer != null) {
             try {
