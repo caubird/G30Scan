@@ -19,6 +19,8 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -264,6 +266,15 @@ public class MainActivity extends AppCompatActivity {
         // RSSI阈值变化时刷新列表
         etRssiThreshold.setOnFocusChangeListener((v, hasFocus) -> {
             if (!hasFocus) updateBeaconList();
+        });
+
+        // 实时过滤：输入 MAC / 资产编号时立即刷新列表，无需手动失焦
+        etMacFilter.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                updateBeaconList();
+            }
         });
 
         // 排序勾选变化时刷新列表
@@ -878,8 +889,9 @@ public class MainActivity extends AppCompatActivity {
             boolean matchesFilter;
             int filterMode = spinnerFilterMode.getSelectedItemPosition();
             if (filterMode == 0) {
-                // MAC过滤模式
-                matchesFilter = filter.length() < 2 || beacon.MAC.toUpperCase().startsWith(filter);
+                // MAC过滤模式：使用归一化 MAC 比对，兼容有无分隔符的格式差异
+                matchesFilter = filter.length() < 2
+                        || normalizeMac(beacon.MAC).startsWith(normalizeMac(filter));
             } else {
                 // 资产编号过滤模式
                 matchesFilter = filter.length() < 2 ||
@@ -894,16 +906,35 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 按RSSI排序（如果勾选）
-        if (cbSort.isChecked()) {
-            Collections.sort(filteredList, new Comparator<BeaconItem>() {
-                @Override
-                public int compare(BeaconItem b1, BeaconItem b2) {
-                    // 按实时RSSI排序，值越大（越接近0）信号越强，排前面
+        // 排序：
+        // 1) 已绑定资产的信标永远置顶（匹配资产）
+        // 2) 接口返回的标签（账号MAC）次之
+        // 3) 普通扫描到的信标排最后
+        // 4) 同层级内若勾选了"按信号排序"，则按 RSSI 降序排列
+        Collections.sort(filteredList, new Comparator<BeaconItem>() {
+            @Override
+            public int compare(BeaconItem b1, BeaconItem b2) {
+                // 第一关键字：已绑定资产（true 在前）
+                boolean matched1 = isMatchedAsset(b1);
+                boolean matched2 = isMatchedAsset(b2);
+                if (matched1 != matched2) {
+                    return matched1 ? -1 : 1;
+                }
+
+                // 第二关键字：接口返回的标签（true 在前）
+                boolean apiTag1 = isApiReturnedTag(b1);
+                boolean apiTag2 = isApiReturnedTag(b2);
+                if (apiTag1 != apiTag2) {
+                    return apiTag1 ? -1 : 1;
+                }
+
+                // 第三关键字：RSSI（信号越强越靠前，仅在勾选时生效）
+                if (cbSort.isChecked()) {
                     return Integer.compare(b2.lastRSSI, b1.lastRSSI);
                 }
-            });
-        }
+                return 0;
+            }
+        });
 
         beaconAdapter.setData(filteredList);
     }
