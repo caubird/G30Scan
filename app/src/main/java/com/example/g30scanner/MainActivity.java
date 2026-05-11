@@ -144,8 +144,6 @@ public class MainActivity extends AppCompatActivity {
 
     // 是否正在查询资产中
     private boolean isQuerying = false;
-    // 发现新信标后标记，用于自动触发增量查询
-    private boolean pendingAutoQuery = false;
 
     // 过滤类别：0=所有MAC, 1=账号MAC, 2=匹配资产
     private int filterCategory = 0;
@@ -365,12 +363,7 @@ public class MainActivity extends AppCompatActivity {
                         processData();
                     }
 
-                    // 自动增量查询：发现新信标后，若当前未在查询中，自动补查一次
-                    if (pendingAutoQuery && !isQuerying) {
-                        pendingAutoQuery = false;
-                        FileLogger.i(LOG_TAG, "检测到新信标，触发自动增量查询");
-                        queryAssetCodes();
-                    }
+                    // 查询改为纯手动触发，不再自动调用 queryAssetCodes()
                 }
                 timerHandler.postDelayed(this, 500);
             }
@@ -794,7 +787,6 @@ public class MainActivity extends AppCompatActivity {
                             }
                             beaconList.add(newBeacon);
                             FileLogger.d(LOG_TAG, "发现新信标 MAC=" + mac + " RSSI=" + rssi);
-                            pendingAutoQuery = true;
 
                         }
                     }
